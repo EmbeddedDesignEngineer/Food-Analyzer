@@ -6,8 +6,10 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, Query, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope
 
 from ai import get_nutrition_provider
 from ai.providers.base import ProviderError
@@ -29,9 +31,14 @@ logger = logging.getLogger(__name__)
 _DB_CONNECT_TIMEOUT_SECONDS = 10
 _SUFFIX_BY_CONTENT_TYPE = {"image/jpeg": ".jpg", "image/png": ".png"}
 
+_WEB_DIR = Path(__file__).resolve().parent / "web"
+# The page renders VLM output and user filenames, so it may only load its own
+# assets (plus the blob: URL of the local photo preview).
+_WEB_CSP = "default-src 'self'; img-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+
 
 class ServiceUnavailableError(Exception):
-    """The analyzer could not be built at startup (e.g. missing API keys)."""
+    """A backing service is unavailable (e.g. missing API keys, no database)."""
 
 
 @asynccontextmanager
@@ -139,6 +146,19 @@ async def analyze(file: UploadFile = File(...)) -> AnalysisRecord:
     return record
 
 
+@app.get("/analyses", response_model=list[AnalysisRecord])
+async def list_analyses(limit: int = Query(20, ge=1, le=100)) -> list[AnalysisRecord]:
+    """Saved analyses, newest first."""
+    repo: AnalysisRepository | None = app.state.repository
+    if repo is None:
+        raise ServiceUnavailableError("History is unavailable: the server has no database connection")
+    try:
+        return await repo.list_recent(limit)
+    except Exception as exc:
+        logger.exception("failed to load analysis history")
+        raise ServiceUnavailableError("Could not load analysis history") from exc
+
+
 @app.get("/health")
 async def health() -> dict:
     persistent = app.state.repository is not None
@@ -148,3 +168,25 @@ async def health() -> dict:
         "analyzer": "ready" if ready else "unavailable",
         "database": "postgresql" if persistent else "unavailable",
     }
+
+
+# --- Web UI: a static page that calls the endpoints above ---
+
+class _RevalidatedStaticFiles(StaticFiles):
+    """Static files that browsers must revalidate, so a rebuilt UI is never hidden by a stale cache."""
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+async def web_ui() -> FileResponse:
+    return FileResponse(
+        _WEB_DIR / "index.html",
+        headers={"Cache-Control": "no-cache", "Content-Security-Policy": _WEB_CSP},
+    )
+
+
+app.mount("/static", _RevalidatedStaticFiles(directory=_WEB_DIR / "static"), name="static")
