@@ -19,7 +19,8 @@ from src.models import AnalysisRecord, AnalysisStatus, IngredientResult
 from src.services.ai_service import AIService
 from src.services.nutrition_cache import NutritionCache
 
-# TODO(config): max_size_bytes and ttl_seconds should come from D's config,
+# NOTE: max_size_bytes and ttl_seconds are hard-coded for now; will move
+# to D's config once it's available.
 
 _MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 _cache = NutritionCache(ttl_seconds=86400)
