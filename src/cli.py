@@ -25,17 +25,17 @@ def _print_table(ingredients: list[IngredientResult], totals: Nutrition) -> None
                 ing.name,
                 f"{ing.estimated_grams:.0f}",
                 f"{n.kcal:.0f}",
-                f"{n.protein:.1f}",
-                f"{n.carbs:.1f}",
-                f"{n.fat:.1f}",
+                f"{n.protein_g:.1f}",
+                f"{n.carbs_g:.1f}",
+                f"{n.fat_g:.1f}",
             ])
     total_row = [
         "TOTAL",
         f"{sum(i.estimated_grams for i in ingredients):.0f}",
         f"{totals.kcal:.0f}",
-        f"{totals.protein:.1f}",
-        f"{totals.carbs:.1f}",
-        f"{totals.fat:.1f}",
+        f"{totals.protein_g:.1f}",
+        f"{totals.carbs_g:.1f}",
+        f"{totals.fat_g:.1f}",
     ]
 
     all_rows = rows + [total_row]
