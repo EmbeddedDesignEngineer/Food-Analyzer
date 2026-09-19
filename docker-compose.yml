@@ -1,36 +1,37 @@
-  version: "3.9"
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-foodanalyzer}
+    ports:
+      # Host port 5433 so it doesn't clash with a locally installed PostgreSQL on 5432.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Runs only when the pgdata volume is first created.
+      - ./src/storage/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-foodanalyzer}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  services:
-    db:
-      image: postgres:16-alpine
-      restart: unless-stopped
-      environment:
-        POSTGRES_USER: ${POSTGRES_USER:-postgres}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-        POSTGRES_DB: ${POSTGRES_DB:-foodanalyzer}
-      ports:
-        - "5432:5432"
-      volumes:
-        - pgdata:/var/lib/postgresql/data
-        - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      healthcheck:
-        test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
-        interval: 5s
-        timeout: 5s
-        retries: 5
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Overrides the localhost DATABASE_URL in .env: inside compose the DB is at host "db".
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-foodanalyzer}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8000}:8000"
 
-    app:
-      build: .
-      restart: unless-stopped
-      env_file:
-        - .env
-      environment:
-        DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-foodanalyzer}
-      depends_on:
-        db:
-          condition: service_healthy
-      ports:
-        - "8000:8000"
-
-  volumes:
-    pgdata:
+volumes:
+  pgdata:
