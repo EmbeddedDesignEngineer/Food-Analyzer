@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Food Analyzer</title>
+  <link rel="icon" href="static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="static/styles.css">
+  <script src="static/app.js" defer></script>
+</head>
+<body>
+  <!-- Icon sprite: referenced with <use href="#i-..."> so the CSP needs no inline images. -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-logo" viewBox="0 0 24 24">
+      <path d="M5 3v5a2 2 0 0 0 4 0V3"/><path d="M7 3v18"/>
+      <path d="M17 21V3c-2 1.5-3 4-3 7v3h3"/>
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="9" cy="10" r="1.75"/>
+      <path d="M21 15.5l-4.5-4.5L7 20"/>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path d="M10.3 4.2 2.6 17.5a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z"/>
+      <path d="M12 9.5v4"/><path d="M12 17h.01"/>
+    </symbol>
+    <symbol id="i-help" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.8"/>
+      <path d="M12 17h.01"/>
+    </symbol>
+    <symbol id="i-error" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/>
+    </symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./">
+        <span class="brand-mark"><svg class="icon" aria-hidden="true"><use href="#i-logo"/></svg></span>
+        Food Analyzer
+      </a>
+      <div class="service-status" aria-label="Server status">
+        <span class="pill" id="pill-analyzer" data-tone="neutral">
+          <span class="pill-dot" aria-hidden="true"></span><span class="pill-label">Checking analyzer…</span>
+        </span>
+        <span class="pill" id="pill-history" data-tone="neutral">
+          <span class="pill-dot" aria-hidden="true"></span><span class="pill-label">Checking history…</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card upload-card" aria-labelledby="upload-title">
+      <div class="card-head">
+        <h2 class="card-title" id="upload-title">Meal photo</h2>
+      </div>
+
+      <input type="file" id="file-input" class="visually-hidden" accept="image/*">
+      <label for="file-input" class="dropzone" id="dropzone">
+        <span class="dropzone-prompt">
+          <svg class="icon dropzone-icon" aria-hidden="true"><use href="#i-image"/></svg>
+          <span class="dropzone-title">Drop a meal photo here</span>
+          <span class="dropzone-sub">or <span class="link-like">browse your files</span>. You can also paste an image.</span>
+        </span>
+        <img class="dropzone-preview" id="preview" alt="" hidden>
+        <span class="dropzone-change">Change photo</span>
+      </label>
+
+      <p class="file-meta" id="file-meta" hidden></p>
+      <p class="notice" id="upload-notice" role="alert" hidden></p>
+      <p class="notice" id="service-notice" hidden></p>
+
+      <button type="button" class="btn btn-primary" id="analyze-btn" disabled>
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="btn-label">Analyze meal</span>
+      </button>
+      <p class="fine-print">
+        JPEG and PNG photos are sent as they are. Other formats and very large photos
+        are converted to JPEG in your browser first.
+      </p>
+    </section>
+
+    <section class="card results-card" id="results-card" aria-labelledby="results-title">
+      <div class="card-head">
+        <h2 class="card-title" id="results-title">Results</h2>
+      </div>
+      <p class="results-source" id="results-source" hidden></p>
+
+      <div class="view view-empty" id="view-empty">
+        <svg class="icon empty-icon" aria-hidden="true"><use href="#i-logo"/></svg>
+        <p class="empty-title">Your results will appear here</p>
+        <p class="empty-text">
+          Add a photo of your meal and choose <strong>Analyze meal</strong> to estimate
+          its calories, protein, carbs and fat.
+        </p>
+      </div>
+
+      <div class="view view-loading" id="view-loading" hidden>
+        <span class="spinner spinner-lg" aria-hidden="true"></span>
+        <p class="empty-title">Analyzing your meal…</p>
+        <p class="empty-text">
+          Identifying the ingredients and looking up their nutrition.
+          This usually takes 5–30 seconds.
+        </p>
+        <p class="loading-elapsed" id="loading-elapsed"></p>
+      </div>
+
+      <div class="view view-error" id="view-error" hidden>
+        <div class="banner" data-tone="critical">
+          <svg class="icon" aria-hidden="true"><use href="#i-error"/></svg>
+          <div>
+            <p class="banner-title">Analysis failed</p>
+            <p class="banner-text" id="error-text"></p>
+          </div>
+        </div>
+        <button type="button" class="btn btn-secondary" id="retry-btn">Try again</button>
+      </div>
+
+      <div class="view view-result" id="view-result" hidden>
+        <div class="banner" id="result-banner" hidden></div>
+
+        <div id="result-nutrition">
+          <p class="hero">
+            <span class="hero-value" id="total-kcal"></span>
+            <span class="hero-unit">kcal in total</span>
+          </p>
+
+          <dl class="tiles">
+            <div class="tile" data-macro="protein">
+              <dt><span class="swatch" aria-hidden="true"></span>Protein</dt>
+              <dd><span class="tile-value" id="total-protein"></span><span class="tile-share" id="share-protein"></span></dd>
+            </div>
+            <div class="tile" data-macro="carbs">
+              <dt><span class="swatch" aria-hidden="true"></span>Carbs</dt>
+              <dd><span class="tile-value" id="total-carbs"></span><span class="tile-share" id="share-carbs"></span></dd>
+            </div>
+            <div class="tile" data-macro="fat">
+              <dt><span class="swatch" aria-hidden="true"></span>Fat</dt>
+              <dd><span class="tile-value" id="total-fat"></span><span class="tile-share" id="share-fat"></span></dd>
+            </div>
+          </dl>
+
+          <div id="macro-split">
+            <div class="macro-bar" id="macro-bar" role="group" aria-label="Share of calories by macronutrient"></div>
+            <p class="caption">Share of calories from each macronutrient (protein and carbs 4&nbsp;kcal/g, fat 9&nbsp;kcal/g)</p>
+          </div>
+
+          <h3 class="section-title">Ingredients</h3>
+          <div class="table-wrap">
+            <table class="ingredients">
+              <thead>
+                <tr>
+                  <th scope="col">Ingredient</th>
+                  <th scope="col" class="num">Amount (g)</th>
+                  <th scope="col" class="num">kcal</th>
+                  <th scope="col" class="num">Protein (g)</th>
+                  <th scope="col" class="num">Carbs (g)</th>
+                  <th scope="col" class="num">Fat (g)</th>
+                  <th scope="col" class="num">Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="ingredients-body"></tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">Total</th>
+                  <td class="num" id="foot-grams"></td>
+                  <td class="num" id="foot-kcal"></td>
+                  <td class="num" id="foot-protein"></td>
+                  <td class="num" id="foot-carbs"></td>
+                  <td class="num" id="foot-fat"></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div id="result-details" hidden>
+          <h3 class="section-title">Details</h3>
+          <ul class="warnings" id="warnings"></ul>
+        </div>
+
+        <details class="raw">
+          <summary>Raw JSON response</summary>
+          <pre id="raw-json"></pre>
+        </details>
+      </div>
+    </section>
+
+    <section class="card history-card" aria-labelledby="history-title">
+      <div class="card-head">
+        <h2 class="card-title" id="history-title">Recent analyses</h2>
+        <button type="button" class="btn-icon" id="history-refresh" aria-label="Refresh history" title="Refresh">
+          <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+        </button>
+      </div>
+      <p class="history-note" id="history-note">Loading…</p>
+      <ol class="history-list" id="history-list"></ol>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Portions and nutrition values are AI estimates, so treat them as approximate.
+    · <a href="docs">API docs</a>
+  </footer>
+
+  <p class="visually-hidden" id="sr-status" aria-live="polite"></p>
+</body>
+</html>
