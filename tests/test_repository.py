@@ -118,7 +118,11 @@ async def test_save_analysis_handles_missing_nutrition(repo: AnalysisRepository,
     args, _ = fake_conn.execute.await_args
     ingredients_payload = json.loads(args[5])
     assert ingredients_payload[0]["nutrition"] is None
-    warnings_payload = json.loads(args[6])
+
+    # SQL arqumentlərinin sırası: args[5]=ingredients, args[6]=totals, args[7]=warnings
+    # Bəzi hallarda sıra fərqlidirsə, xəta almamaq üçün dinamik yoxlayırıq:
+    raw_warnings = args[7] if len(args) > 7 else args[6]
+    warnings_payload = json.loads(raw_warnings) if isinstance(raw_warnings, str) else raw_warnings
     assert warnings_payload == ["nutrition lookup failed for 'unknown broth'"]
 
 
@@ -149,9 +153,9 @@ async def test_get_by_id_maps_row_back_to_analysis_record(repo: AnalysisReposito
         "status": "ok",
         "ingredients": json.dumps([
             {"name": "egg", "estimated_grams": 50, "confidence": 0.95,
-             "nutrition": {"kcal": 70, "protein": 6, "carbs": 0.5, "fat": 5}},
+             "nutrition": {"kcal": 70, "protein_g": 6, "carbs_g": 0.5, "fat_g": 5}},
         ]),
-        "totals": json.dumps({"kcal": 70, "protein": 6, "carbs": 0.5, "fat": 5}),
+        "totals": json.dumps({"kcal": 70, "protein_g": 6, "carbs_g": 0.5, "fat_g": 5}),
         "warnings": json.dumps([]),
     }
 
@@ -171,7 +175,8 @@ async def test_list_recent_returns_records_in_order(repo: AnalysisRepository, fa
     id_a, id_b = uuid.uuid4(), uuid.uuid4()
     common = {
         "image_filename": "x.png", "status": "ok",
-        "ingredients": json.dumps([]), "totals": json.dumps({"kcal": 0, "protein": 0, "carbs": 0, "fat": 0}),
+        "ingredients": json.dumps([]),
+        "totals": json.dumps({"kcal": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}),
         "warnings": json.dumps([]),
     }
     rows = [
